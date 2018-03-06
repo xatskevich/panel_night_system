@@ -18,8 +18,9 @@
 #include "timer.h"
 
 #define sys_clock 48000
-#define idle 5000
+#define idle 5200
 #define koef_k 9200
+#define koef_perc 25600
 
 #define set_strobe 		GPIO_SetBits(GPIOC, GPIO_Pin_6);		//строб записи в регистр
 #define reset_strobe 	GPIO_ResetBits(GPIOC, GPIO_Pin_6);
@@ -27,8 +28,15 @@
 #define water_min_address 0x08007800
 #define water_max_address 0x08007804
 #define foam_min_address 0x08007808
-#define foam_max_address 0x0800780c
+#define foam_max_address 0x0800780C
 #define flash_pto_address 0x08007810
+#define input_config_address 0x08007814
+#define out1_config_address 0x08007818
+#define out2_config_address 0x0800781C
+#define out3_config_address 0x08007820
+#define button_mask_address 0x08007824
+#define out4_config_address 0x08007828
+#define out5_config_address 0x0800782C
 
 //**********keyboard*****************
 #define is_button_power 	1<<9
@@ -41,6 +49,17 @@
 #define is_button_inc			1<<2
 #define is_button_dec			1<<4
 //**********************************
+
+#define set_out1		GPIO_SetBits(GPIOC, GPIO_Pin_7)
+#define reset_out1		GPIO_ResetBits(GPIOC, GPIO_Pin_7)
+#define set_out2		GPIO_SetBits(GPIOC, GPIO_Pin_9)
+#define reset_out2		GPIO_ResetBits(GPIOC, GPIO_Pin_9)
+#define set_out3		GPIO_SetBits(GPIOC, GPIO_Pin_8)
+#define reset_out3		GPIO_ResetBits(GPIOC, GPIO_Pin_8)
+#define set_out4		GPIO_SetBits(GPIOB, GPIO_Pin_2)
+#define reset_out4		GPIO_ResetBits(GPIOB, GPIO_Pin_2)
+#define set_out5		GPIO_SetBits(GPIOB, GPIO_Pin_10)
+#define reset_out5		GPIO_ResetBits(GPIOB, GPIO_Pin_10)
 
 #define set_out_power			GPIO_SetBits(GPIOB, GPIO_Pin_12)
 #define reset_out_power		GPIO_ResetBits(GPIOB, GPIO_Pin_12)
@@ -88,13 +107,21 @@
 #define set_green_led_reset			GPIO_SetBits(GPIOA, GPIO_Pin_7)
 #define reset_green_led_reset		GPIO_ResetBits(GPIOA, GPIO_Pin_7)
 
-
+#define bit_left		1<<0
+#define bit_right		1<<1
+#define bit_beam		1<<2
+#define bit_rear		1<<3
+#define bit_inside	1<<4
+#define bit_strobe	1<<5
+#define bit_tail		1<<6
 
 extern uint8_t is_idle, left, right, is_stop, power_up, morg, pto_address, can_on, can_cnt;
 extern uint8_t w_morg, f_morg;		//8 бит - рост шкалы
 							//значение без 8 бита - спад шкалы
 extern uint16_t to_revs, rpm, rpm_buf;
-extern uint8_t oil, temper;
+extern uint8_t oil, temper, light_buf, ignition,
+inputs;	//0 - роллета
+		//1 - ступень
 extern uint8_t blink_cnt, blink;
 extern uint16_t butt;	//0 - сцепление
 				//1 - питание
@@ -117,7 +144,35 @@ extern uint8_t buttons;	//0 - питание
 					//5 - сигнал на проверку калибровки
 					//6 - моргалка
 					//7 -
+extern uint8_t buttons_out;	//0 - ПУСК
+						//1 - СТОП
+						//2 - обор+
+						//3 - обор-
+extern uint8_t button_mask;
+extern uint8_t light_mask;		//0 - осв слева
+						//1 - осв справа
+						//2 - маяк
+						//3 - задний прожектор
+						//4 - осв отсеков
+						//5 - строб
+						//6 - габариты
+						//7 -
 
+extern uint8_t input_config,	//0 - вх1 роллета
+						//1 - вх1 ступень
+						//2 - вх1 активный
+						//3 - вх1 неактивный
+						//4 - вх2 роллета
+						//5 - вх2 ступень
+						//6 - вх2 активный
+						//7 - вх2 неактивный
+out1_config, out2_config, out3_config,	//0 - осв слева
+out4_config, out5_config;				//1 - осв справа
+										//2 - маяк
+										//3 - задний прожектор
+										//4 - осв отсека
+										//5 - строб
+										//6 - габарит
 extern uint8_t butt_b[10],		//буфер ШИМ кнопок
 		bkg,								//буфер ШИМ нижних сегментов
 		ind_b[16];		//буфер ШИМ индикаторов
@@ -127,10 +182,12 @@ typedef struct {
 	int16_t min;
 	int16_t max;
 	int16_t koeff;
+	int16_t koeff_perc;
 	int16_t input;
 	int8_t out;
+	int8_t percent;
 	uint8_t count;
-	uint16_t analog;
+	int16_t analog;
 } levels;
 
 extern levels water, foam;

@@ -51,7 +51,8 @@ void TIM14_IRQHandler(void) { //1 мс индикация
 
 void TIM16_IRQHandler(void) { //30мс кнопки
 	uint16_t i, tmp, temp;
-
+	uint8_t out;
+	
 	TIM16->SR &= ~TIM_SR_UIF; //сброс флага
 
 //моргалка ~0.75c
@@ -80,7 +81,7 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 
 //изменение скважности ШИМ кнопок
 	tmp = buttons;
-	if((tmp & 1) == 0) tmp |= 0x20;	//если питание выключено, белая подсветка кнопки
+	if(((tmp & 1) == 0) && ignition) tmp |= 0x20;	//если питание выключено, белая подсветка кнопки
 	if(power_up){
 		for(i = 1; i < 5; i++) if((tmp & (1 << i)) == 0) tmp |= 1 << (i+5);
 	}
@@ -122,6 +123,118 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 		}
 	}
 
+	//входа
+	if(input_config & 0xF){		//вход 1
+		if(input_config & 1){		//если вход настроен на роллету
+			if(input_config & 4){	//открытое состояние активный
+				if(is_in1) inputs |= 1;	//включить сигнал
+				else inputs &= ~1;		//выключить сигнал
+			}
+			if(input_config & 8){	//открытое состояние неактивный
+				if(is_in1) inputs &= ~1;	//выключить сигнал
+				else inputs |= 1;			//включить сигнал
+			}
+		}
+		if(input_config & 2){		//если вход настроен на роллету
+			if(input_config & 4){	//открытое состояние активный
+				if(is_in1) inputs |= 2;	//включить сигнал
+				else inputs &= ~2;		//выключить сигнал
+			}
+			if(input_config & 8){	//открытое состояние неактивный
+				if(is_in1) inputs &= ~2;	//выключить сигнал
+				else inputs |= 2;			//включить сигнал
+			}
+		}
+	}
+	if(input_config & 0xF0){	//вход 2
+		if(input_config & 0x10){		//если вход настроен на роллету
+			if(input_config & 0x40){	//открытое состояние активный
+				if(is_in2) inputs |= 1;	//включить сигнал
+				else inputs &= ~1;		//выключить сигнал
+			}
+			if(input_config & 0x80){	//открытое состояние неактивный
+				if(is_in2) inputs &= ~1;	//выключить сигнал
+				else inputs |= 1;			//включить сигнал
+			}
+		}
+		if(input_config & 0x20){		//если вход настроен на роллету
+			if(input_config & 0x40){	//открытое состояние активный
+				if(is_in2) inputs |= 2;	//включить сигнал
+				else inputs &= ~2;		//выключить сигнал
+			}
+			if(input_config & 0x80){	//открытое состояние неактивный
+				if(is_in2) inputs &= ~2;	//выключить сигнал
+				else inputs |= 2;			//включить сигнал
+			}
+		}
+	}
+	
+	//выхода
+	out = 0;
+	if(out1_config){		//выход 1
+		for(i=0; i<7; i++){
+			if((light_mask & 1<<i) && (out1_config & 1<<i)) out = 1;	//если выход задействован и включен
+		}
+		if(out){			//если нужно включить выход
+			if(out1_config & 0x10){		//если освещение отсеков
+				if(inputs & 1) set_out1;	//проверяем роллету
+				else reset_out1;
+			} else set_out1;		//если не освещение отсеков, включаем выход
+		} else reset_out1;
+	}
+
+	out = 0;
+	if(out2_config){		//выход 2
+		for(i=0; i<7; i++){
+			if((light_mask & 1<<i) && (out2_config & 1<<i)) out = 1;	//если выход задействован и включен
+		}
+		if(out){			//если нужно включить выход
+			if(out2_config & 0x10){		//если освещение отсеков
+				if(inputs & 1) set_out2;	//проверяем роллету
+				else reset_out2;
+			} else set_out2;		//если не освещение отсеков, включаем выход
+		} else reset_out2;
+	}
+
+	out = 0;
+	if(out3_config){		//выход 3
+		for(i=0; i<7; i++){
+			if((light_mask & 1<<i) && (out3_config & 1<<i)) out = 1;	//если выход задействован и включен
+		}
+		if(out){			//если нужно включить выход
+			if(out3_config & 0x10){		//если освещение отсеков
+				if(inputs & 1) set_out3;	//проверяем роллету
+				else reset_out3;
+			} else set_out3;		//если не освещение отсеков, включаем выход
+		} else reset_out3;
+	}
+
+	out = 0;
+	if(out4_config){		//выход 4
+		for(i=0; i<7; i++){
+			if((light_mask & 1<<i) && (out4_config & 1<<i)) out = 1;	//если выход задействован и включен
+		}
+		if(out){			//если нужно включить выход
+			if(out4_config & 0x10){		//если освещение отсеков
+				if(inputs & 1) set_out4;	//проверяем роллету
+				else reset_out4;
+			} else set_out4;		//если не освещение отсеков, включаем выход
+		} else reset_out4;
+	}
+
+	out = 0;
+	if(out5_config){		//выход 3
+		for(i=0; i<7; i++){
+			if((light_mask & 1<<i) && (out5_config & 1<<i)) out = 1;	//если выход задействован и включен
+		}
+		if(out){			//если нужно включить выход
+			if(out5_config & 0x10){		//если освещение отсеков
+				if(inputs & 1) set_out5;	//проверяем роллету
+				else reset_out5;
+			} else set_out5;		//если не освещение отсеков, включаем выход
+		} else reset_out5;
+	}
+	
 //кнопки
 	tmp = ((GPIOA->IDR ^ 0x7FF) & 0x730) | ((GPIOC->IDR ^ 0xF) & 0x6) | (((GPIOC->IDR ^ 0xF0) & 0x30) << 2);
 	temp = tmp ^ butt; //определение изменения состояния кнопок
@@ -129,74 +242,45 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 
 	//нажата клавиша обороты +
 	if ((tmp & is_button_inc) && (power_up)) {
-		set_out_inc;
-		if ((rpm) && (power_up)) { //есть питание и обороты
-			if (temp & is_button_inc) { //если клавиша только нажата
-				if (is_idle == 1) to_revs = idle - 160;
-				is_idle = 0;
-				if (to_revs < 18000) to_revs += 160; //добавить оборотов
-				if (to_revs > 18000) to_revs = 18000;
-				rev_p = 42; //задержка при долгом нажатии клавиши
-			}
-			if (rev_p == 0) {
-				if (to_revs < 18000) to_revs += 24; //если задержка прошла, увеличить обороты
-			} else {
-				rev_p--;
-			}
-		}
+		buttons_out |= 4;
+		is_idle = 0;
 	} else {
-		reset_out_inc;
-	} //
+		buttons_out &= ~4;
+	}
 
 	//нажата клавиша обороты -
 	if ((tmp & is_button_dec) && (power_up)) {
-		set_out_dec;
-		if ((rpm) && (power_up)) { //есть питание и обороты
-			if (temp & is_button_dec) { //если клавиша только нажата
-				if (to_revs > idle) to_revs -= 160; //убавить оборотов
-				if (to_revs < idle) {
-					to_revs = idle;
-					//is_idle = 1;
-				}
-				rev_m = 42; //задержка при долгом нажатии клавиши
-			}
-			if (rev_m == 0) {
-				if (to_revs > idle) to_revs -= 24; //если задержка прошла, уменьшить обороты
-				if (to_revs <= idle) {
-					to_revs = idle;
-					//is_idle = 1;
-				}
-			} else {
-				rev_m--;
-			}
-		}
+		buttons_out |= 8;
 	} else {
-		reset_out_dec;
-	} //
+		buttons_out &= ~8;
+	}
 
 	//клавиша ПУСК
 	if ((tmp & is_button_start) && (power_up)) { //нажата клавиша ПУСК
-			set_out_start;
+			buttons_out |= 1;
 		} else {
-			reset_out_start;
+			buttons_out &= ~1;
 		}
 
 	//клавиша СТОП
 	if (temp & is_button_stop) { //нажата клавиша СТОП
 		if(tmp & is_button_stop){
-			set_out_stop;
 			is_stop = 1;
 			left = 0;
 			right = 0;
 		} else { //отпущена СТОП
-			reset_out_stop;
 			is_stop = 0;
 			buttons |= 0x20; //отпущена стоп, проверить калибровку
 		}
 	}
+	if(tmp & is_button_stop){
+		buttons_out |= 2;
+	} else {
+		buttons_out &= ~2;
+	}
 
 	//нажата клавиша питание
-	if ((temp & is_button_power) && (tmp & is_button_power)) {
+	if ((temp & is_button_power) && (tmp & is_button_power) && ignition) {
 		power_up ^= 0x1;
 		if (power_up) { //питание включено
 			set_out_power;
@@ -206,7 +290,6 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 			to_revs = idle;
 			reset_out_power;
 			buttons &= ~0x13;
-			reset_out_clutch;
 			reset_led_oil;
 			reset_led_temp;
 		}
@@ -218,9 +301,7 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 		if (buttons & 0x2) { //включение сцепления
 			is_idle = 1;
 			to_revs = idle;
-			set_out_clutch;
-		} else { //выключение сцепления
-			reset_out_clutch;
+			buttons &= ~0x10;
 		}
 	}
 
@@ -229,12 +310,8 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 		if (is_stop) { //СТОП нажат
 			left++;
 		} else { //СТОП не нажат
-			buttons ^= 0x4;
-			if (buttons & 0x4) { //включение освещения
-				set_out_left;
-			} else { //выключение освещения
-				reset_out_left;
-			}
+			if(button_mask & 2)
+				buttons ^= 0x4;
 		}
 	}
 
@@ -243,12 +320,8 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 		if (is_stop) { //СТОП нажат
 			right++;
 		} else { //СТОП не нажат
-			buttons ^= 0x8;
-			if (buttons & 0x8) { //включение освещения
-				set_out_right;
-			} else { //выключение освещения
-				reset_out_right;
-			}
+			if(button_mask & 0x20)
+				buttons ^= 0x8;
 		}
 	}
 
@@ -256,12 +329,8 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 	if ((temp & is_button_reset) && (tmp & is_button_reset) && (power_up)) {
 		buttons ^= 0x10;
 		if (buttons & 0x10) { //клавиша активна
-			//rpm_buf = to_revs;
 			is_idle = 1;
 			to_revs = idle;
-		} else {
-			//is_idle = 0;
-			//to_revs = rpm_buf;
 		}
 	}
 
@@ -354,87 +423,113 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 		}
 	}
 
+	//выбор следующего канала АЦП
+	ADC1->CHSELR ^= 0x3;
+	//запуск преобразования АЦП
+	ADC_StartOfConversion(ADC1);
 }
 
 void TIM17_IRQHandler(void) { //CAN
+	
+	uint8_t tmp;
+	static uint8_t can_out_cnt;
+	
 	TIM17->SR &= ~TIM_SR_UIF; //сброс флага
 
 //анализ CAN
 	can_cnt++;
-	if (can_cnt == 127) { //интервал 1,27 с
+	if (can_cnt == 31) { //интервал 1,27 с
+		can_cnt = 0;
 		if (can_on == 0) { //CAN сообщений не было
-			if (power_up) { //при включенном питании
-				if (is_in1) reset_led_oil; //давление
-				else set_led_oil;
+			GPIOB->ODR ^= 0x40;
+			power_up = 0;
+			is_idle = 1;
+			to_revs = idle;
+			reset_out_power;
+			buttons &= ~0x13;
+			ignition = 0;
 
-				if (is_in2) reset_led_temp; //перегрев
-				else set_led_temp;
-			}
 		}
 		can_on = 0;
 	}
 
 	IWDG_ReloadCounter(); //watchdog
 
-	if (power_up) {
-		if (is_idle) { //холостой ход
-			TxMessage.IDE = CAN_Id_Extended;
-			TxMessage.ExtId = 0xC000000 | pto_address; //0xC000003;
-			TxMessage.DLC = 8;
-			TxMessage.Data[0] = 0xEC; //0xFC;
-			TxMessage.Data[1] = 0xFF;
-			TxMessage.Data[2] = 0xFF;
-			TxMessage.Data[3] = 0xFF; //0x7D;
-			TxMessage.Data[4] = 0x17; //0xFF;
-			TxMessage.Data[5] = 0xFF;
-			TxMessage.Data[6] = 0xFF;
-			TxMessage.Data[7] = 0xFF;
-			CAN_Transmit(CAN, &TxMessage);
-			if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
-				//GPIO_SetBits(GPIOA, GPIO_Pin_9);
-				//set_led_temp;
-			}
-		} else { //регулировка оборотов
-			TxMessage.IDE = CAN_Id_Extended;
-			TxMessage.ExtId = 0xC000000 | pto_address; //0xC000003;
-			TxMessage.DLC = 8;
-			TxMessage.Data[0] = 0xED; //0xC1;
-			TxMessage.Data[1] = to_revs;
-			TxMessage.Data[2] = to_revs >> 8;
-			TxMessage.Data[3] = 0xFF;
-			TxMessage.Data[4] = 0x17; //0xFC;
-			TxMessage.Data[5] = 0xFF;
-			TxMessage.Data[6] = 0xFF;
-			TxMessage.Data[7] = 0xFF;
-			CAN_Transmit(CAN, &TxMessage);
-			if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
-				//GPIO_SetBits(GPIOA, GPIO_Pin_9);
-				//set_led_temp;
-			}
-		}
-	} else {
-		TxMessage.IDE = CAN_Id_Extended;
-		TxMessage.ExtId = 0xC000000 | pto_address; //0xC000003;
-		TxMessage.DLC = 8;
-		TxMessage.Data[0] = 0xEC; //0xFC;
-		TxMessage.Data[1] = 0xFF;
+	//CAN посылки
+	can_out_cnt++;
+//40 мс
+	tmp = 0;
+	if(buttons_out & 2) tmp |= 0x01;	//СТОП
+	if(buttons_out & 1) tmp |= 0x04;	//ПУСК
+	if(buttons_out & 4) tmp |= 0x10;	//обор+
+	if(buttons_out & 8) tmp |= 0x40;	//обор-
+	TxMessage.Data[0] = tmp;
+	tmp = 0xC0;
+	if(buttons & 2) tmp |= 0x01;	//сцепление
+	if(power_up) tmp |= 0x04;		//питание пульта
+	if(is_idle) tmp |= 0x10;		//хх
+	TxMessage.Data[1] = tmp;
+	TxMessage.IDE = CAN_Id_Standard;
+	TxMessage.StdId = 0x010; //управление двигателем
+	TxMessage.DLC = 2;
+	CAN_Transmit(CAN, &TxMessage);
+	if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
+		//GPIO_SetBits(GPIOA, GPIO_Pin_9);
+		//GPIOB->ODR ^= 0x80;
+
+	}
+//80 мс
+	if(can_out_cnt & 1){
+		TxMessage.IDE = CAN_Id_Standard;
+		TxMessage.StdId = 0x018; //уровни
+		TxMessage.DLC = 4;
+		TxMessage.Data[0] = water.percent;
+		TxMessage.Data[1] = foam.percent;
 		TxMessage.Data[2] = 0xFF;
-		TxMessage.Data[3] = 0xFF; //0x7D;
-		TxMessage.Data[4] = 0x17; //0xFF;
-		TxMessage.Data[5] = 0xFF;
-		TxMessage.Data[6] = 0xFF;
-		TxMessage.Data[7] = 0xFF;
+		TxMessage.Data[3] = 0xFF;
 		CAN_Transmit(CAN, &TxMessage);
 		if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
 			//GPIO_SetBits(GPIOA, GPIO_Pin_9);
-			//set_led_temp;
+			GPIOB->ODR ^= 0x80;
 		}
 	}
 
-	//выбор следующего канала АЦП
-	ADC1->CHSELR ^= 0x3;
-	//запуск преобразования АЦП
-	ADC_StartOfConversion(ADC1);
+//160 мс
+	if(can_out_cnt == 4){
+		can_out_cnt = 0;
+
+		tmp = 0xF0;
+		if (buttons & 0x4) tmp |= 1;	//освещение слева
+		if (buttons & 0x8) tmp |= 4;	//освещение справа
+
+		TxMessage.IDE = CAN_Id_Standard;
+		TxMessage.StdId = 0x028; //
+		TxMessage.DLC = 3;
+		TxMessage.Data[0] = 0xFF;
+		TxMessage.Data[1] = 0xFF;
+		TxMessage.Data[2] = tmp;
+		CAN_Transmit(CAN, &TxMessage);
+		if ((CAN_GetLastErrorCode(CAN)>>4) == 3) { //ошибка отправки
+			//GPIO_SetBits(GPIOA, GPIO_Pin_9);
+			//GPIOB->ODR ^= 0x80;
+		}
+	//}*/
+	//if(can_out_cnt == 2){	//0x056
+		if(input_config){		//входа настроены
+			tmp = 0xF0;
+			if(inputs & 1) tmp |= 1;	//роллета
+			if(inputs & 2) tmp |= 4;	//ступень
+			TxMessage.IDE = CAN_Id_Standard;
+			TxMessage.StdId = 0x056; //
+			TxMessage.DLC = 1;
+			TxMessage.Data[0] = tmp;
+			CAN_Transmit(CAN, &TxMessage);
+			if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
+				//GPIO_SetBits(GPIOA, GPIO_Pin_9);
+				//GPIOB->ODR ^= 0x80;
+			}
+		}
+	}
 }
 
 void delay_ms(uint16_t dl) {
@@ -462,7 +557,6 @@ void delay_us (uint32_t dl){
 
 void Init_Timer() {
 
-	//таймер кнопок
 	TIM16->PSC = sys_clock / 100 - 1;
 	TIM16->ARR = 3000; //период 30 мс
 	TIM16->DIER |= TIM_DIER_UIE;
@@ -470,7 +564,7 @@ void Init_Timer() {
 
 	//таймер CAN + ADC
 	TIM17->PSC = sys_clock / 100 - 1;
-	TIM17->ARR = 1000; //период 10 мс
+	TIM17->ARR = 4000; //период 40 мс
 	TIM17->DIER |= TIM_DIER_UIE;
 	TIM17->CR1 |= TIM_CR1_CEN;
 

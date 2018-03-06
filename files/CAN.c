@@ -3,35 +3,157 @@
 
 void CEC_CAN_IRQHandler (void)
 {
+	uint8_t tmp;
 
-	if (CAN_GetITStatus(CAN,CAN_IT_FMP0)){
-		CAN_ClearITPendingBit(CAN, CAN_IT_FMP0);	//сброс флага
-		can_on = 1;
+	if (CAN_GetITStatus(CAN, CAN_IT_FMP0)) {
+		CAN_ClearITPendingBit(CAN, CAN_IT_FMP0); //сброс флага
+
 		CanRxMsg msg_buf;
 		CAN_Receive(CAN, CAN_FIFO0, &msg_buf);
-		if(power_up){
-			switch(msg_buf.FMI){		//номер фильтра
-			case 0:						//обороты 3,4 байт
-				rpm=msg_buf.Data[4]<<8;
-				rpm |= msg_buf.Data[3];
-				if(buttons & 0x10){		//если нажата сброс
-									if(rpm < idle + 400) buttons &= ~0x10;	//сброс моргания кнопки сброс
-								}
+		can_on = 1;
+
+		switch (msg_buf.FMI) {
+		case 0: //0x011
+
+			rpm=msg_buf.Data[1]<<8;		//обороты
+			rpm |= msg_buf.Data[0];
+
+			if(buttons & 0x10){			//если активен сброс
+				if(rpm < idle + 400) buttons &= ~0x10;		//если обороты хх выключить кнопку
+			}
+
+			if (power_up) {
+				temper = msg_buf.Data[2]; //перегрев
+				if (temper != 0xFF) {
+					if ((temper > 149) && (power_up)) set_led_temp;
+					else reset_led_temp;
+				} else {
+					if ((msg_buf.Data[4] & 0x3) == 0x1) set_led_temp; //перегрев
+					if ((msg_buf.Data[4] & 0x3) == 0) reset_led_temp;
+				}
+
+				oil = msg_buf.Data[3]; //давление
+				if (oil != 0xFF) {
+					if ((oil < 32) && (power_up)) set_led_oil;
+					else reset_led_oil;
+				} else {
+					if ((msg_buf.Data[4] & 0xC) == 0x4) set_led_oil; //давление
+					if ((msg_buf.Data[4] & 0xC) == 0) reset_led_oil;
+				}
+			} else {
+				reset_led_oil;
+				reset_led_temp;
+			}
+
+			tmp = msg_buf.Data[4];		//зажигание
+			if((tmp & 0x30) == 0x10) ignition = 1;
+			if((tmp & 0x30) == 0){
+				ignition = 0;
+				power_up = 0;
+				is_idle = 1;
+				to_revs = idle;
+				reset_out_power;
+				buttons &= ~0x13;
+				reset_led_oil;
+				reset_led_temp;
+			}
+
+			if((msg_buf.Data[4] & 0xC0) == 0x40) light_mask |= 0x40;	//габариты
+			if((msg_buf.Data[4] & 0xC0) == 0) light_mask &= ~0x40;
 
 			break;
-			case 1:						//температура 0 байт
-				temper=msg_buf.Data[0];
-				if(temper>149) set_led_temp;
-				else reset_led_temp;
-			break;
-			case 2:						//давление 3 байт
-				oil=msg_buf.Data[3];
-				if(oil<32) set_led_oil;
-				else reset_led_oil;
-			break;
+		case 1: //0x028
+			tmp = 0;
+			if ((msg_buf.Data[2] & 0x3) == 1) tmp |= 1; //освещение слева
+			if ((msg_buf.Data[2] & 0xC) == 4) tmp |= 2; //освещение справа
+			if ((tmp & 1) ^ (light_buf & 1)) { //если освещение слева переключили с кнопочной
+				if (tmp & 0x1) { 	//включение освещения
+					buttons |= 0x4;
+				} else { 			//выключение освещения
+					buttons &= ~0x4;
+				}
 			}
+			if ((tmp & 2) ^ (light_buf & 2)) { //если освещение справа переключили с кнопочной
+				if (tmp & 0x2) { 	//включение освещения
+					buttons |= 0x8;
+				} else { 				//выключение освещения
+					buttons &= ~0x8;
+				}
+			}
+			light_buf = tmp;
+
+			if((msg_buf.Data[1] & 0x3) == 0x1) light_mask |= 4;	//маяк
+			if((msg_buf.Data[1] & 0x3) == 0) light_mask &= ~4;
+
+			if((msg_buf.Data[1] & 0xC) == 0x4) light_mask |= 8;	//задний прожектор
+			if((msg_buf.Data[1] & 0xC) == 0) light_mask &= ~8;
+
+			if((msg_buf.Data[0] & 0x30) == 0x10) light_mask |= 0x20;	//стробы
+			if((msg_buf.Data[0] & 0x30) == 0) light_mask &= ~0x20;
+
+			if((msg_buf.Data[2] & 0x30) == 0x10) light_mask |= 0x10;	//освещение отсеков
+			if((msg_buf.Data[2] & 0x30) == 0) light_mask &= ~0x10;
+
+			if(buttons & 4) light_mask |= 0x1; else light_mask &= ~0x1;	//освещение слева
+			if(buttons & 8) light_mask |= 0x2; else light_mask &= ~0x2;	//освещение справа
+
+			break;
+		case 2:		//0x0AC
+			button_mask = msg_buf.Data[0];		//конигурация кнопок
+			input_config = msg_buf.Data[1];			//конфигурация входов
+
+			tmp = msg_buf.Data[2] & 0xF;			//конфигурация выход1
+			if(tmp) out1_config = 1 << tmp;
+			tmp = (msg_buf.Data[2] & 0xF0) >> 4;	//конфигурация выход2
+			if(tmp) out2_config = 1 << tmp;
+			tmp = msg_buf.Data[3] & 0xF;			//конфигурация выход3
+			if(tmp) out3_config = 1 << tmp;
+			pto_address = msg_buf.Data[4];			//адрес TCM для J1939
+			tmp = msg_buf.Data[5] & 0xF;			//конфигурация выход4
+			if(tmp) out4_config = 1 << tmp;
+			tmp = (msg_buf.Data[5] & 0xF0) >> 4;	//конфигурация выход5
+			if(tmp) out5_config = 1 << tmp;
+
+			//запрет прерывания CAN
+			CAN_ITConfig(CAN, CAN_IT_FMP0, DISABLE);
+			//стирание flash
+			flash_erase();
+			//запись
+			flash_prog_all();
+			//разрешение прерывания CAN
+			CAN_ITConfig(CAN, CAN_IT_FMP0, ENABLE);
+
+			break;
+		case 3:		//0xAA
+			TxMessage.IDE = CAN_Id_Standard;
+			TxMessage.StdId = 0x0AA; 
+			TxMessage.DLC = 6;
+			TxMessage.Data[0] = 0x01;
+			TxMessage.Data[1] = input_config;
+			TxMessage.Data[2] = out_config_convert(out1_config);
+			TxMessage.Data[2] |= (out_config_convert(out2_config) << 4);
+			TxMessage.Data[3] = out_config_convert(out3_config);
+			TxMessage.Data[4] = pto_address;
+			TxMessage.Data[5] = out_config_convert(out4_config);
+			TxMessage.Data[5] |= (out_config_convert(out5_config) << 4);
+			CAN_Transmit(CAN, &TxMessage);
+			if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
+			
+			}
+			break;
 		}
 	}
+}
+
+uint8_t out_config_convert(uint8_t data){		//конвертация из out_config в sys_config
+	uint8_t i;
+	
+	i = 0;
+	while(data){
+		data = data >> 1;
+		i++;
+	}
+	return i;
 }
 
 void Init_CAN(){
@@ -54,14 +176,15 @@ void Init_CAN(){
 	CAN_InitStructure.CAN_Prescaler = 12;		//48MHz / 16 / 12 == 250k
 	CAN_Init(CAN, &CAN_InitStructure);
 
-	/* CAN filter init */
+	CAN_ITConfig(CAN, CAN_IT_FMP0, ENABLE);
+
 	CAN_FilterInitStructure.CAN_FilterNumber = 0;
 	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
 	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
-	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x0CF0<<3; //0x0000;	id 0CF004
-	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0400<<3; //0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x1fff<<3)|7; //0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x1f00<<3;
+	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x011 << 5;
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x0ff << 5;
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0;
 	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
 	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
 	CAN_FilterInit(&CAN_FilterInitStructure);
@@ -69,10 +192,10 @@ void Init_CAN(){
 	CAN_FilterInitStructure.CAN_FilterNumber = 1;
 	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
 	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
-	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x18FE<<3)|7; //0x0000;	id 18FEEE
-	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0E00<<3; //0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x1fff<<3)|7; //0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x1f00<<3;
+	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x028 << 5;
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x0ff << 5;
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0;
 	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
 	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
 	CAN_FilterInit(&CAN_FilterInitStructure);
@@ -80,49 +203,25 @@ void Init_CAN(){
 	CAN_FilterInitStructure.CAN_FilterNumber = 2;
 	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
 	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
-	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x18FE<<3)|7; //0x0000;		id 18FEEF
-	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0F00<<3; //0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x1fff<<3)|7; //0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x1f00<<3;
+	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x0AC << 5;
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x0ff << 5;
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0;
+	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
+	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
+	CAN_FilterInit(&CAN_FilterInitStructure);
+	
+	CAN_FilterInitStructure.CAN_FilterNumber = 3;
+	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
+	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
+	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x0AA << 5;
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x0ff << 5;
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0;
 	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
 	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
 	CAN_FilterInit(&CAN_FilterInitStructure);
 
-	//инициализация платы в системе
-	TxMessage.IDE = CAN_Id_Extended;
-	TxMessage.ExtId = 0x18EAFFFE;
-	TxMessage.DLC = 3;
-	TxMessage.Data[0] = 0x00;
-	TxMessage.Data[1] = 0xEE;
-	TxMessage.Data[2] = 0x00;
-	CAN_Transmit(CAN, &TxMessage);
-	if (CAN_GetLastErrorCode(CAN)) {
-
-	}
-	//задержка 400мс
-	delay_us(100000);
-
-	TxMessage.IDE = CAN_Id_Extended;
-	TxMessage.ExtId = 0x18EEFF00 | pto_address;
-	TxMessage.DLC = 8;
-	TxMessage.Data[0] = 0x80;
-	TxMessage.Data[1] = 0x06;
-	TxMessage.Data[2] = 0x00;
-	TxMessage.Data[3] = 0x00;
-	TxMessage.Data[4] = 0x11;
-	TxMessage.Data[5] = 0x22;
-	TxMessage.Data[6] = 0x33;
-	TxMessage.Data[7] = 0x44;
-	CAN_Transmit(CAN, &TxMessage);
-	if (CAN_GetLastErrorCode(CAN)) {
-
-	}
-
-	//задержка 250мс
-	delay_us(2000);
-
-	/* Enable FIFO 0 message pending Interrupt */
-	CAN_ITConfig(CAN, CAN_IT_FMP0, ENABLE);
 
 	//вектор
 	NVIC_InitStructure.NVIC_IRQChannel = CEC_CAN_IRQn;
