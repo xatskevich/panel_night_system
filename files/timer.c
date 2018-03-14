@@ -83,9 +83,9 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 	tmp = buttons;
 	if(((tmp & 1) == 0) && ignition) tmp |= 0x20;	//если питание выключено, белая подсветка кнопки
 	if(power_up){
-		for(i = 1; i < 5; i++) if((tmp & (1 << i)) == 0) tmp |= 1 << (i+5);
+		for(i = 1; i < 5; i++) if((tmp & (1 << i)) == 0) tmp |= 1 << (i+5);	//при включенном питании белая подсветка на неактивных кнопках
 	}
-	if(blink == 0) tmp &= ~0x10;
+	if(blink == 0) tmp &= ~0x10;	//моргание активного сброса
 	for (i = 0; i < 10; i++) {
 		if (tmp & (1 << i)) {
 			if (butt_b[i] < 8) butt_b[i]++;
@@ -93,6 +93,7 @@ void TIM16_IRQHandler(void) { //30мс кнопки
 			if (butt_b[i] > 0) butt_b[i]--;
 		}
 	}
+	if(butt_b[5] > 2) butt_b[5] = 2;	//приглушенная белая подсветка питания
 
 	//ШИМ подсветки
 	if(power_up){

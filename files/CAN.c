@@ -103,16 +103,16 @@ void CEC_CAN_IRQHandler (void)
 			input_config = msg_buf.Data[1];			//конфигурация входов
 
 			tmp = msg_buf.Data[2] & 0xF;			//конфигурация выход1
-			if(tmp) out1_config = 1 << tmp;
+			if(tmp) out1_config = 1 << (tmp - 1);
 			tmp = (msg_buf.Data[2] & 0xF0) >> 4;	//конфигурация выход2
-			if(tmp) out2_config = 1 << tmp;
+			if(tmp) out2_config = 1 << (tmp - 1);
 			tmp = msg_buf.Data[3] & 0xF;			//конфигурация выход3
-			if(tmp) out3_config = 1 << tmp;
+			if(tmp) out3_config = 1 << (tmp - 1);
 			pto_address = msg_buf.Data[4];			//адрес TCM для J1939
 			tmp = msg_buf.Data[5] & 0xF;			//конфигурация выход4
-			if(tmp) out4_config = 1 << tmp;
+			if(tmp) out4_config = 1 << (tmp - 1);
 			tmp = (msg_buf.Data[5] & 0xF0) >> 4;	//конфигурация выход5
-			if(tmp) out5_config = 1 << tmp;
+			if(tmp) out5_config = 1 << (tmp - 1);
 
 			//запрет прерывания CAN
 			CAN_ITConfig(CAN, CAN_IT_FMP0, DISABLE);
@@ -125,20 +125,22 @@ void CEC_CAN_IRQHandler (void)
 
 			break;
 		case 3:		//0xAA
-			TxMessage.IDE = CAN_Id_Standard;
-			TxMessage.StdId = 0x0AA; 
-			TxMessage.DLC = 6;
-			TxMessage.Data[0] = 0x01;
-			TxMessage.Data[1] = input_config;
-			TxMessage.Data[2] = out_config_convert(out1_config);
-			TxMessage.Data[2] |= (out_config_convert(out2_config) << 4);
-			TxMessage.Data[3] = out_config_convert(out3_config);
-			TxMessage.Data[4] = pto_address;
-			TxMessage.Data[5] = out_config_convert(out4_config);
-			TxMessage.Data[5] |= (out_config_convert(out5_config) << 4);
-			CAN_Transmit(CAN, &TxMessage);
-			if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
+			if(msg_buf.Data[0] == 0xAA){
+				TxMessage.IDE = CAN_Id_Standard;
+				TxMessage.StdId = 0x0AA; 
+				TxMessage.DLC = 6;
+				TxMessage.Data[0] = 0x01;
+				TxMessage.Data[1] = input_config;
+				TxMessage.Data[2] = out_config_convert(out1_config);
+				TxMessage.Data[2] |= (out_config_convert(out2_config) << 4);
+				TxMessage.Data[3] = out_config_convert(out3_config);
+				TxMessage.Data[4] = pto_address;
+				TxMessage.Data[5] = out_config_convert(out4_config);
+				TxMessage.Data[5] |= (out_config_convert(out5_config) << 4);
+				CAN_Transmit(CAN, &TxMessage);
+				if (CAN_GetLastErrorCode(CAN)) { //ошибка отправки
 			
+				}
 			}
 			break;
 		}
